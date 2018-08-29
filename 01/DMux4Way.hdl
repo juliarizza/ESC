@@ -16,5 +16,18 @@ CHIP DMux4Way {
     OUT a, b, c, d;
 
     PARTS:
-    // Put your code here:
+    Nand(a=sel[0], b=sel[0], out=notSel0);
+    Nand(a=sel[1], b=sel[1], out=notSel1);
+    // Defining a
+    And(a=notSel0, b=notSel1, out=selA);
+    And(a=in, b=selA, out=a);
+    // Defining b
+    And(a=notSel1, b=sel[0], out=selB);
+    And(a=in, b=selB, out=b);
+    // Defining c
+    And(a=sel[1], b=notSel0, out=selC);
+    And(a=in, b=selC, out=c);
+    // Defining d
+    And(a=sel[0], b=sel[1], out=selD);
+    And(a=in, b=selD, out=d);
 }
