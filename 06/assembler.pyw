@@ -13,7 +13,7 @@ comp = {
 
 dest = {
     'null': '000', 'M': '001', 'D': '010', 'MD': '011',
-    'A': '100', 'AM': '110', 'AMD': '111'
+    'A': '100', 'AM': '101', 'AD': '110', 'AMD': '111'
 }
 
 jump = {
@@ -110,7 +110,7 @@ def filter_symbols(line):
         return symbol
 
 translation = []
-with open('rect/Rect.asm', 'r') as file:
+with open('pong/Pong.asm', 'r') as file:
     line_counter = 0
     for line in file:
         line = filter_line(line)
@@ -125,7 +125,7 @@ with open('rect/Rect.asm', 'r') as file:
             labels[label] = line_counter
 file.close()
 
-with open('rect/Rect.asm', 'r') as file:
+with open('pong/Pong.asm', 'r') as file:
     for line in file:
         line = filter_line(line)
         if is_blank(line):
@@ -138,7 +138,7 @@ with open('rect/Rect.asm', 'r') as file:
             translation.append(translate_c_command(line))
 file.close()
 
-with open('rect/Rect.hack', 'w') as file:
+with open('pong/Pong.hack', 'w') as file:
     for line in translation:
         file.write(line + '\n')
 file.close()
