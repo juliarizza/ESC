@@ -1,3 +1,31 @@
+symbols = {
+    'SP'    : '0',
+    'LCL'   : '1',
+    'ARG'   : '2',
+    'THIS'  : '3',
+    'THAT'  : '4',
+    'R0'    : '0',
+    'R1'    : '1',
+    'R2'    : '2',
+    'R3'    : '3',
+    'R4'    : '4',
+    'R5'    : '5',
+    'R6'    : '6',
+    'R7'    : '7',
+    'R8'    : '8',
+    'R9'    : '9',
+    'R10'   : '10',
+    'R11'   : '11',
+    'R12'   : '12',
+    'R13'   : '13',
+    'R14'   : '14',
+    'R15'   : '15',
+    'SCREEN': '16384',
+    'KBD'   : '24576'
+}
+
+labels = {}
+
 comp = {
     '0'  : '0101010',
     '1'  : '0111111',
@@ -50,10 +78,16 @@ jump = {
     'JMP' : '111'
 }
 
+def filter_line(line):
+    index = line.find('//')
+    if index > -1:
+        line = line[:index]
+    line = line.replace('\n', '')
+    line = line.strip()
+    return line
+
 def is_blank(line):
-    empty_line = line == '\n'
-    comment = line[:2] == '//'
-    return empty_line or comment
+    return len(line) == 0
 
 def is_a_command(line):
     return line[0] == '@'
@@ -79,25 +113,54 @@ def split_line(line):
         dest_part = 'null'
         split_sc = split_equal[0].split(';')
         comp_part = split_sc[0]
-        jump_part = split_sc[1].replace('\n', '')
+        jump_part = split_sc[1]
     else:
         dest_part = split_equal[0]
         split_sc = split_equal[1].split(';')
         if not len(split_sc) > 1:
-            comp_part = split_sc[0].replace('\n', '')
+            comp_part = split_sc[0]
             jump_part = 'null'
         else:
             comp_part = split_sc[0]
-            jump_part = split_sc[1].replace('\n', '')
+            jump_part = split_sc[1]
 
     return dest_part, comp_part, jump_part
 
+def filter_label(line):
+    return line.replace('(', '').replace(')', '')
+
+def filter_symbols(line):
+    symbol = line[1:]
+    if symbol in symbols.keys():
+        return "@{}".format(symbols[symbol])
+    elif symbol in labels.keys():
+        return "@{}".format(labels[symbol])
+    else:
+        return line
+
 translation = []
-with open('max/MaxL.asm', 'r') as file:
+with open('max/Max.asm', 'r') as file:
+    line_counter = 0
     for line in file:
+        line = filter_line(line)
         if is_blank(line):
             continue
         elif is_a_command(line):
+            line_counter += 1
+        elif is_label(line):
+            label = filter_label(line)
+            labels[label] = line_counter
+        else:
+            line_counter += 1
+    file.close()
+
+with open('max/Max.asm', 'r') as file:
+    for line in file:
+        line = filter_line(line)
+        if is_blank(line):
+            continue
+        elif is_a_command(line):
+            line = filter_symbols(line)
             translation.append(translate_a_command(line))
         elif is_label(line):
             continue
@@ -105,7 +168,7 @@ with open('max/MaxL.asm', 'r') as file:
             translation.append(translate_c_command(line))
     file.close()
 
-with open('max/MaxL.hack', 'w') as file:
+with open('max/Max.hack', 'w') as file:
     for line in translation:
         file.write(line + '\n')
     file.close()
