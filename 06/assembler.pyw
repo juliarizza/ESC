@@ -30,22 +30,24 @@ comp = {
 }
 
 dest = {
-    'M'  : '001',
-    'D'  : '010',
-    'MD' : '011',
-    'A'  : '100',
-    'AM' : '110',
-    'AMD': '111'
+    'null': '000',
+    'M'   : '001',
+    'D'   : '010',
+    'MD'  : '011',
+    'A'   : '100',
+    'AM'  : '110',
+    'AMD' : '111'
 }
 
 jump = {
-    'JGT': '001',
-    'JEQ': '010',
-    'JGE': '011',
-    'JLT': '100',
-    'JNE': '101',
-    'JLE': '110',
-    'JMP': '111'
+    'null': '000',
+    'JGT' : '001',
+    'JEQ' : '010',
+    'JGE' : '011',
+    'JLT' : '100',
+    'JNE' : '101',
+    'JLE' : '110',
+    'JMP' : '111'
 }
 
 def is_blank(line):
@@ -65,16 +67,34 @@ def translate_a_command(line):
     return command
 
 def translate_c_command(line):
-    split_equal = line.split('=')
-    dest_part = split_equal[0]
-    comp_part = split_equal[1].replace('\n', '')
-    command = "111{}{}000".format(comp[comp_part], dest[dest_part])
+    dest_part, comp_part, jump_part = split_line(line)
+    command = "111{}{}{}".format(
+        comp[comp_part], dest[dest_part], jump[jump_part]
+    )
     return command
 
+def split_line(line):
+    split_equal = line.split('=')
+    if not len(split_equal) > 1:
+        dest_part = 'null'
+        split_sc = split_equal[0].split(';')
+        comp_part = split_sc[0]
+        jump_part = split_sc[1].replace('\n', '')
+    else:
+        dest_part = split_equal[0]
+        split_sc = split_equal[1].split(';')
+        if not len(split_sc) > 1:
+            comp_part = split_sc[0].replace('\n', '')
+            jump_part = 'null'
+        else:
+            comp_part = split_sc[0]
+            jump_part = split_sc[1].replace('\n', '')
+
+    return dest_part, comp_part, jump_part
+
 translation = []
-with open('add\Add.asm', 'r') as file:
+with open('max/MaxL.asm', 'r') as file:
     for line in file:
-        print(line)
         if is_blank(line):
             continue
         elif is_a_command(line):
@@ -85,7 +105,7 @@ with open('add\Add.asm', 'r') as file:
             translation.append(translate_c_command(line))
     file.close()
 
-with open('add\Add.hack', 'w') as file:
+with open('max/MaxL.hack', 'w') as file:
     for line in translation:
         file.write(line + '\n')
     file.close()
