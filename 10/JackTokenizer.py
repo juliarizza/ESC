@@ -21,16 +21,16 @@ class JackTokenizer():
         '*', '/', '&', '|', '<', '>', '=', '~'
     ]
 
-    def __init__(self, file_path, output_name):
+    def __init__(self, input_file, output_file):
         """
             Opens the input .jack file and gets ready to
             tokenize it.
         """
-        if os.path.exists(f"T{output_name}.xml"):
-            os.remove(f"T{output_name}.xml")
+        if os.path.exists(output_file):
+            os.remove(output_file)
 
-        self.input = open(file_path, 'r')
-        self.output = open(f"T{output_name}.xml", 'a+')
+        self.input = open(input_file, 'r')
+        self.output = open(output_file, 'a+')
         self.current_token = None
         self.current_token_position = 0
         self.comment = False

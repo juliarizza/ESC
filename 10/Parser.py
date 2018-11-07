@@ -3,17 +3,17 @@ import os
 class CompilationEngine():
     OPERATORS = ['+', '-', '*', '/', '&amp;', '|', '&lt;', '&gt;', '=']
 
-    def __init__(self, tokens_path, output_path):
+    def __init__(self, token_file, output_file):
         """
             Creates a new compilation engine with
             the given input and output.
             The next routine called must be compileClass.
         """
-        if os.path.exists(f"{output_path}.xml"):
-            os.remove(f"{output_path}.xml")
+        if os.path.exists(output_file):
+            os.remove(output_file)
 
-        self.input = open(tokens_path, 'r')
-        self.output = open(f"{output_path}.xml", 'a+')
+        self.input = open(token_file, 'r')
+        self.output = open(output_file, 'a+')
         self.current_line = self.input.readline()
         self.indent = 0
 
