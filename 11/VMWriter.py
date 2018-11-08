@@ -1,6 +1,13 @@
 class VMWriter():
     ARITHMETIC_COMMANDS = {
-        "+" : "add"
+        "+" : "add",
+        "-" : "sub",
+        "~" : "not",
+        ">" : "gt",
+        "<" : "lt",
+        "&" : "and",
+        "=" : "eq",
+        "neg" : "neg"
     }
 
     EXTERNAL_ARITHMETICS = {

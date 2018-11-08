@@ -10,6 +10,13 @@
 """
 
 class SymbolTable():
+    KINDS = {
+        "var": "local",
+        "argument": "argument",
+        "field": "field",
+        "static": "static"
+    }
+
     def __init__(self):
         """
             Creates a new symbol table.
@@ -23,9 +30,7 @@ class SymbolTable():
             (i.e., resets the subroutine's
             symbol table).
         """
-        self.subroutine_scope = [
-            {"name": "this", "type": "class", "kind": "argument", "index": 0}
-        ]
+        self.subroutine_scope = []
 
     def define(self, name, type, kind):
         """
@@ -37,11 +42,19 @@ class SymbolTable():
         """
         if kind == "static" or kind == "field":
             self.class_scope.append(
-                {"name": name, "type": type, "kind": kind, "index": self.varCount(kind)}
+                {
+                    "name": name, "type": type,
+                    "kind": self.KINDS[kind],
+                    "index": self.varCount(self.KINDS[kind])
+                }
             )
         elif kind == "argument" or kind == "var":
             self.subroutine_scope.append(
-                {"name": name, "type": type, "kind": kind, "index": self.varCount(kind)}
+                {
+                    "name": name, "type": type,
+                    "kind": self.KINDS[kind],
+                    "index": self.varCount(self.KINDS[kind])
+                }
             )
 
     def varCount(self, kind):

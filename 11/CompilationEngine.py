@@ -26,6 +26,7 @@ class CompilationEngine():
         self.current_line = self.input.readline()
         self.symbol_table = None
         self.code_writer = VMWriter(output_file)
+        self.label_counter = 0
         self.indent = 0
 
 
@@ -39,19 +40,7 @@ class CompilationEngine():
         # Percorre o arquivo até o fim
         self.current_line = self.input.readline()
         while "</tokens>" not in self.current_line:
-            keyword = self._identify_value(self.current_line)
-
-            if keyword == "class":
-                self.compileClass()
-            elif keyword == "function":
-                self.compileSubroutineDec()
-            elif keyword == "var":
-                self.compileVarDec()
-            elif keyword in ["let", "if", "while", "do", "return"]:
-                self.compileStatements()
-            else:
-                print("----- Não foi possível identificar a linha atual.")
-                self.current_line = self.input.readline()
+            self.compileClass()
 
     def _identify_key(self, line):
         tag_end = line.find('>')
@@ -81,6 +70,11 @@ class CompilationEngine():
 
     def _skipLine(self):
         self.current_line = self.input.readline()
+
+    def _generateLabel(self):
+        label = "L{}".format(self.label_counter)
+        self.label_counter += 1
+        return label
 
     def compileClass(self):
         """
@@ -192,11 +186,9 @@ class CompilationEngine():
                 self._skipLine()
                 # Guarda o nome do argumento <identifier> nome </identifier>
                 name = self._identify_value(self.current_line)
+                self._skipLine()
                 # Adiciona o argumento à symbol table da subrotina
                 self.symbol_table.define(name, type, "argument")
-                # Escreve o código para o push no .vm
-                index = self.symbol_table.indexOf(name)
-                self.code_writer.writePush("argument", index)
                 # Aumenta a contagem de parâmetros
                 parameters_count += 1
             else:
@@ -223,35 +215,29 @@ class CompilationEngine():
             Compiles a var declaration.
         """
         # Escreve múltiplas declarações de variáveis seguidas
-        while "var" in self.current_line:
-            self.output.write("{}<varDec>\n".format(" " * 2 * self.indent))
-            self.indent += 1
-
-            # Escreve a declaração da variável
+        while self._identify_value(self.current_line) == "var":
+            # Grava e avança a declaração da variável <keyword> var </keyword>
             kind = self._identify_value(self.current_line)
-            self.current_line = self.input.readline()
-            # Escreve o tipo da variável
+            self._skipLine()
+            # Grava e avança o tipo da variável <keyword> int </keyword>
             type = self._identify_value(self.current_line)
-            self.current_line = self.input.readline()
+            self._skipLine()
 
-            # Escreve a declaração até que encontre o último caracter
-            while ' ; ' not in self.current_line:
-                if not "symbol" in self.current_line:
+            # Avança a declaração até que encontre o último caracter
+            while self._identify_value(self.current_line) != ';':
+                if self._identify_key(self.current_line) != "symbol":
                     # Se não for uma vírgula, é um novo nome de variável
+                    # Grava e avança o nome da variável
                     name = self._identify_value(self.current_line)
+                    self._skipLine()
                     # Adiciona a variável à symbol table
                     self.symbol_table.define(name, type, kind)
-                    index = self.symbol_table.indexOf(name)
-                    # Escreve o nome da variável
-                    self._writeLine(f"<{kind}> {index} </{kind}>\n")
                 else:
-                    self._writeLine()
+                    # Avança a vírgula
+                    self._skipLine()
 
-            # Escreve o último caracter ;
-            self._writeLine()
-
-            self.indent -= 1
-            self.output.write("{}</varDec>\n".format(" " * 2 * self.indent))
+            # Avança o último caracter ;
+            self._skipLine()
 
     def compileStatements(self):
         """
@@ -279,13 +265,11 @@ class CompilationEngine():
         """
             Compiles a let statement.
         """
-        self.output.write("{}<letStatement>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
-        # Escreve a keyword <keyword> let </keyword>
-        self._writeLine()
-        # Escreve o nome da variável <identifier> nome </identifier>
-        self._writeLine()
+        # Avança a keyword <keyword> let </keyword>
+        self._skipLine()
+        # Grava e avança o nome da variável <identifier> nome </identifier>
+        name = self._identify_value(self.current_line)
+        self._skipLine()
 
         # Se tiver [, é de um array e deve conter uma expressão dentro
         if self._identify_value(self.current_line) == '[':
@@ -296,78 +280,105 @@ class CompilationEngine():
             # Escreve o fechamento de chave ]
             self._writeLine()
 
-        # Escreve a associação <symbol> = </symbol>
-        self._writeLine()
-        # Escreve a expressão
+        # Avança a associação <symbol> = </symbol>
+        self._skipLine()
+        # Compila a expressão
         self.compileExpression()
-        # Escreve o fim da declaração <symbol> ; </symbol>
-        self._writeLine()
+        # Avança o fim da declaração <symbol> ; </symbol>
+        self._skipLine()
 
-        self.indent -= 1
-        self.output.write("{}</letStatement>\n".format(" " * 2 * self.indent))
+        # Escreve o resultado da expressão na variável usando o pop
+        kind = self.symbol_table.kindOf(name)
+        index = self.symbol_table.indexOf(name)
+        self.code_writer.writePop(kind, index)
 
     def compileIf(self):
         """
             Compiles an if statement,
             possibly with a trailing else clause.
         """
-        self.output.write("{}<ifStatement>\n".format(" " * 2 * self.indent))
-        self.indent += 1
+        else_label = self._generateLabel()
+        end_label = self._generateLabel()
 
-        # Escreve a keyword <keyword> if </keyword>
-        self._writeLine()
-        # Escreve o início da expressão <symbol> ( </symbol>
-        self._writeLine()
-        # Escreve a expressão
+        # Avança a keyword <keyword> if </keyword>
+        self._skipLine()
+        # Avança o início da expressão <symbol> ( </symbol>
+        self._skipLine()
+        # Compila a expressão de verificação
         self.compileExpression()
-        # Escreve o fim da expressão <symbol> ) </symbol>
-        self._writeLine()
-        # Escreve o início do bloco e continua até o fim do mesmo
-        self._writeLine()
-        while '}' not in self.current_line:
+        # Avança o fim da expressão <symbol> ) </symbol>
+        self._skipLine()
+
+        # Nega a expressão de verificação no arquivo .vm
+        self.code_writer.writeArithmetic("~")
+        # Redireciona para o else no arquivo .vm
+        self.code_writer.writeIf(else_label)
+
+        # Inicia o bloco do if <symbol> { </symbol>
+        self._skipLine()
+        while self._identify_value(self.current_line) != '}':
             self.compileStatements()
-        # Escreve o fim do bloco <symbol> } </symbol>
-        self._writeLine()
+        # Avança o fim do bloco <symbol> } </symbol>
+        self._skipLine()
+
+        # Redireciona para o fim da verificação no .vm
+        self.code_writer.writeGoto(end_label)
+        # Escreve a label do else no arquivo .vm
+        self.code_writer.writeLabel(else_label)
 
         # Confere se existe um bloco else
-        if 'else' in self.current_line:
-            # Escreve o else <keyword> else </keyword>
-            self._writeLine()
-            # Escreve o início do bloco <symbol> { </symbol>
-            self._writeLine()
+        if self._identify_value(self.current_line) == "else":
+            # Avança o else <keyword> else </keyword>
+            self._skipLine()
+            # Avança o início do bloco <symbol> { </symbol>
+            self._skipLine()
             # Escreve o conteúdo do bloco
-            while '}' not in self.current_line:
+            while self._identify_value(self.current_line) != '}':
                 self.compileStatements()
-            # Escreve o fim do bloco <symbol> } </symbol>
-            self._writeLine()
+            # Avança o fim do bloco <symbol> } </symbol>
+            self._skipLine()
 
-        self.indent -= 1
-        self.output.write("{}</ifStatement>\n".format(" " * 2 * self.indent))
+        # Escreve a label de fim de bloco
+        self.code_writer.writeLabel(end_label)
 
     def compileWhile(self):
         """
             Compiles a while statement.
         """
-        self.output.write("{}<whileStatement>\n".format(" " * 2 * self.indent))
-        self.indent += 1
+        # Define as 2 labels necessárias
+        start_label = self._generateLabel()
+        end_label = self._generateLabel()
 
-        # Escreve o início da declaração <keyword> while </keyword>
-        self._writeLine()
-        # Escreve o início da expressão <symbol> ( </symbol>
-        self._writeLine()
-        # Escreve a expressão
+        # Escreve a label de início no arquivo .vm
+        self.code_writer.writeLabel(start_label)
+
+        # Avança o início da declaração <keyword> while </keyword>
+        self._skipLine()
+        # Avança o início da expressão <symbol> ( </symbol>
+        self._skipLine()
+        # Compila a expressão de verificação
         self.compileExpression()
-        # Escreve o fim da expressão </symbol> ) </symbol>
-        self._writeLine()
-        # Escreve o início do bloco e continua até o fim do mesmo
-        self._writeLine()
-        while '}' not in self.current_line:
-            self.compileStatements()
-        # Escreve o fim do bloco <symbol> } </symbol>
-        self._writeLine()
 
-        self.indent -= 1
-        self.output.write("{}</whileStatement>\n".format(" " * 2 * self.indent))
+        # Nega a expressão de verificação no arquivo .vm
+        self.code_writer.writeArithmetic("~")
+        # Verifica a expressão e escreve um if-goto no arquivo .vm
+        self.code_writer.writeIf(end_label)
+
+        # Avança o fim da expressão </symbol> ) </symbol>
+        self._skipLine()
+        # Avança o início do bloco e continua até o fim do mesmo
+        self._skipLine()
+        # Compila o conteúdo do while
+        while self._identify_value(self.current_line) != '}':
+            self.compileStatements()
+        # Avança o fim do bloco <symbol> } </symbol>
+        self._skipLine()
+
+        # Escreve um goto no arquivo para voltar ao início do loop no .vm
+        self.code_writer.writeGoto(start_label)
+        # Escreve label final para sair do loop no .vm
+        self.code_writer.writeLabel(end_label)
+
 
     def compileDo(self):
         """
@@ -452,24 +463,26 @@ class CompilationEngine():
             # var[expressao], funcao.chamada()
             # Por isso gravamos e avançamos o identificador e
             # verificamos por caracteres especiais
-            nome = self._identify_value(self.current_line)
+            name = self._identify_value(self.current_line)
             self._skipLine()
 
             if self._identify_value(self.current_line) == '.':
                 # Se a linha for um símbolo . é uma chamada a uma função
                 # Grava e avança o ponto
-                nome += "."
-                self._writeLine()
+                name += "."
+                self._skipLine()
                 # Grava e avança o nome da função
-                nome += self._identify_value(self.current_line)
-                self._writeLine()
+                name += self._identify_value(self.current_line)
+                self._skipLine()
                 # Avança o símbolo de início da chamada (
-                self._writeLine()
+                self._skipLine()
                 # Se houver uma expressão dentro da chamada, compila
                 # Se não, compila a lista em branco
                 n_args = self.compileExpressionList()
                 # Avança o símbolo de fim da chamada )
-                self._writeLine()
+                self._skipLine()
+                # Escreve a chamada da função no arquivo .vm
+                self.code_writer.writeCall(name, n_args)
             elif self._identify_value(self.current_line) == '[':
                 # Se a linha for um símbolo [ é um acesso ao array
                 # Avança a chave [
@@ -478,6 +491,11 @@ class CompilationEngine():
                 self.compileExpression()
                 # Avança a chave ]
                 self._writeLine()
+            else:
+                # Faz o push do identifier no arquivo .vm
+                kind = self.symbol_table.kindOf(name)
+                index = self.symbol_table.indexOf(name)
+                self.code_writer.writePush(kind, index)
         elif self._identify_value(self.current_line) == '(':
             # Avança a abertura de expressão (
             self._skipLine()
@@ -485,8 +503,15 @@ class CompilationEngine():
             self.compileExpression()
             # Avança o encerramento da expressão )
             self._skipLine()
-        elif "keyword" in self.current_line:
-            self._writeLine()
+        elif self._identify_key(self.current_line) == "keyword":
+            # Faz o push do valor no arquivo .vm
+            value = self._identify_value(self.current_line)
+            if value == "true":
+                self.code_writer.writePush("constant", 0)
+                self.code_writer.writeArithmetic('~')
+            elif value == "false":
+                self.code_writer.writePush("constant", 0)
+            self._skipLine()
         elif "stringConstant" in self.current_line:
             self._writeLine()
         elif self._identify_key(self.current_line) == "integerConstant":
@@ -498,8 +523,11 @@ class CompilationEngine():
         elif self._identify_value(self.current_line) in ['-', '~']:
             # É um operador unário e ainda tem outra parte do termo
             # depois dele, portanto escreve o operador e o próximo termo
-            self._writeLine()
+            op = self._identify_value(self.current_line)
+            op = op if op == '~' else 'neg'
+            self._skipLine()
             self.compileTerm()
+            self.code_writer.writeArithmetic(op)
 
     def compileExpressionList(self):
         """
