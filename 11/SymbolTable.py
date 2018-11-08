@@ -24,7 +24,7 @@ class SymbolTable():
             symbol table).
         """
         self.subroutine_scope = [
-            {"name": "this", "type": "class", "kind": "ARG", "index": 0}
+            {"name": "this", "type": "class", "kind": "argument", "index": 0}
         ]
 
     def define(self, name, type, kind):
@@ -35,11 +35,11 @@ class SymbolTable():
             have a class scope, while ARG and VAR
             identifiers have a subroutine scope.
         """
-        if kind == "STATIC" or kind == "FIELD":
+        if kind == "static" or kind == "field":
             self.class_scope.append(
                 {"name": name, "type": type, "kind": kind, "index": self.varCount(kind)}
             )
-        elif kind == "ARG" or kind == "VAR":
+        elif kind == "argument" or kind == "var":
             self.subroutine_scope.append(
                 {"name": name, "type": type, "kind": kind, "index": self.varCount(kind)}
             )
