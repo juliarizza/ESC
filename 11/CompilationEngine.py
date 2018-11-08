@@ -181,14 +181,18 @@ class CompilationEngine():
 
         # Escreve todas as linhas até encontrar o caracter de fim de parâmetros
         while ')' not in self.current_line:
-            # Escreve o tipo
-            type = self._identify_value(self.current_line)
-            self._writeLine()
-            # Escreve o nome do argumento
-            name = self._identify_key(self.current_line)
-            self._writeLine()
-            # Adiciona o argumento à symbol table da subrotina
-            self.symbol_table.define(name, type, "argument")
+            if not "symbol" in self.current_line:
+                # Escreve o tipo
+                type = self._identify_value(self.current_line)
+                self._writeLine()
+                # Escreve o nome do argumento
+                name = self._identify_value(self.current_line)
+                self._writeLine()
+                # Adiciona o argumento à symbol table da subrotina
+                self.symbol_table.define(name, type, "argument")
+            else:
+                # Escreve a vírgula
+                self._writeLine()
 
         self.indent -= 1
         self.output.write("{}</parameterList>\n".format(" " * 2 * self.indent))
