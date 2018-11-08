@@ -1,5 +1,6 @@
 import os
 from SymbolTable import SymbolTable
+from VMWriter import VMWriter
 
 """
     - Gets its input from a JackTockenizer and writes its output
@@ -24,6 +25,7 @@ class CompilationEngine():
         self.output = open(output_file, 'a+')
         self.current_line = self.input.readline()
         self.symbol_table = None
+        self.code_writer = VMWriter(output_file)
         self.indent = 0
 
 
@@ -77,6 +79,9 @@ class CompilationEngine():
             ))
             self.current_line = self.input.readline()
 
+    def _skipLine(self):
+        self.current_line = self.input.readline()
+
     def compileClass(self):
         """
             Compiles a complete class.
@@ -84,24 +89,19 @@ class CompilationEngine():
         # Cada classe nova deve ter uma symbol table nova
         self.symbol_table = SymbolTable()
 
-        self.output.write("<class>\n")
-        self.indent += 1
-
-        # Escreve <keyword> class </keyword>
-        self._writeLine()
-        # Escreve o nome da classe <identifier> nome </identifier>
-        self._writeLine()
-        # Escreve o símbolo de início da classe <symbol> { </symbol>
-        self._writeLine()
+        # Avança a linha <keyword> class </keyword>
+        self._skipLine()
+        # Grava e avança o nome da classe <identifier> nome </identifier>
+        name = self._identify_value(self.current_line)
+        self._skipLine()
+        # Avança o símbolo de início da classe <symbol> { </symbol>
+        self._skipLine()
 
         self.compileClassVarDec()
-        self.compileSubroutineDec()
+        self.compileSubroutineDec(name)
 
-        # Escreve o símbolo de fechamento da classe <symbol> } </symbol>
-        self._writeLine()
-
-        self.indent -= 1
-        self.output.write("</class>\n")
+        # Avança o símbolo de fechamento da classe <symbol> } </symbol>
+        self._skipLine()
 
     def compileClassVarDec(self):
         """
@@ -142,83 +142,81 @@ class CompilationEngine():
             self.indent -= 1
             self.output.write("{}</classVarDec>\n".format(" " * 2 * self.indent))
 
-    def compileSubroutineDec(self):
+    def compileSubroutineDec(self, class_name):
         """
             Compiles a complete method, function,
             or constructor.
         """
-        # Escrever múltiplos métodos ou funções seguidos
-        while "method" in self.current_line or "function" in self.current_line \
-            or "constructor" in self.current_line:
-            self.output.write("{}<subroutineDec>\n".format(" " * 2 * self.indent))
-            self.indent += 1
-
+        # Analisa múltiplos métodos ou funções seguidos
+        while self._identify_value(self.current_line) in [
+                "method", "function", "constructor"
+            ]:
             # Cria uma nova symbol table para o escopo da subrotina
             self.symbol_table.startSubroutine()
 
-            # Escreve a declaração <keyword> function </keyword>
-            self._writeLine()
-            # Escreve o tipo de retorno <keyword> void </keyword>
-            self._writeLine()
-            # Escreve o nome da função <identifier> nome </identifier>
-            self._writeLine()
-            # Escreve a declaração dos parâmetros <symbol> ( </symbol>
-            self._writeLine()
-            # Escreve a lista de parâmetros
-            self.compileParameterList()
-            # Escreve a conclusão dos parâmetros <symbol> ) </symbol>
-            self._writeLine()
+            # Avança a declaração <keyword> function </keyword>
+            self._skipLine()
+            # Grava e avança o tipo de retorno <keyword> void </keyword>
+            type = self._identify_value(self.current_line)
+            self._skipLine()
+            # Grava e avança o nome da função <identifier> nome </identifier>
+            name = self._identify_value(self.current_line)
+            self._skipLine()
+            # Avança a declaração dos parâmetros <symbol> ( </symbol>
+            self._skipLine()
+            # Recebe e grava a quantidade de parâmetros na lista de parâmetros
+            n_params = self.compileParameterList()
+            # Avança a conclusão dos parâmetros <symbol> ) </symbol>
+            self._skipLine()
+
+            # Escreve a declaração da função no arquivo .vm
+            self.code_writer.writeFunction(
+                "{}.{}".format(class_name, name),
+                n_params
+            )
 
             self.compileSubroutineBody()
-
-            self.indent -= 1
-            self.output.write("{}</subroutineDec>\n".format(" " * 2 * self.indent))
 
     def compileParameterList(self):
         """
             Compiles a (possibly empty) parameter
             list. Does not handle the enclosin "()".
         """
-        self.output.write("{}<parameterList>\n".format(" " * 2 * self.indent))
-        self.indent += 1
+        parameters_count = 0
 
         # Escreve todas as linhas até encontrar o caracter de fim de parâmetros
-        while ')' not in self.current_line:
-            if not "symbol" in self.current_line:
-                # Escreve o tipo
+        while self._identify_value(self.current_line) != ')':
+            if self._identify_key(self.current_line) != "symbol":
+                # Guarda e avança o tipo do argumento <keyword> int </keyword>
                 type = self._identify_value(self.current_line)
-                self.current_line = self.input.readline()
-                # Escreve o nome do argumento
+                self._skipLine()
+                # Guarda o nome do argumento <identifier> nome </identifier>
                 name = self._identify_value(self.current_line)
                 # Adiciona o argumento à symbol table da subrotina
                 self.symbol_table.define(name, type, "argument")
+                # Escreve o código para o push no .vm
                 index = self.symbol_table.indexOf(name)
-                self._writeLine(f"<argument> {index} </argument>\n")
+                self.code_writer.writePush("argument", index)
+                # Aumenta a contagem de parâmetros
+                parameters_count += 1
             else:
-                # Escreve a vírgula
-                self._writeLine()
+                # Avança a vírgula
+                self._skipLine()
 
-        self.indent -= 1
-        self.output.write("{}</parameterList>\n".format(" " * 2 * self.indent))
+        return parameters_count
 
     def compileSubroutineBody(self):
         """
             Compiles a subroutine's body.
         """
-        self.output.write("{}<subroutineBody>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
-        # Escreve a abertura de bloco <symbol> { </symbol>
-        self._writeLine()
+        # Avança a abertura de bloco <symbol> { </symbol>
+        self._skipLine()
 
         self.compileVarDec()
         self.compileStatements()
 
-        # Escreve o término do bloco <symbol> } </symbol>
-        self._writeLine()
-
-        self.indent -= 1
-        self.output.write("{}</subroutineBody>\n".format(" " * 2 * self.indent))
+        # Avança o término do bloco <symbol> } </symbol>
+        self._skipLine()
 
     def compileVarDec(self):
         """
@@ -260,12 +258,9 @@ class CompilationEngine():
             Compiles a sequence os statements.
             Does not handle the enclosing "{}";
         """
-        self.output.write("{}<statements>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
         keyword = self._identify_value(self.current_line)
 
-        # Escreve múltiplos statements
+        # Verifica múltiplos statements
         while keyword in ["let", "if", "while", "do", "return"]:
             if keyword == "let":
                 self.compileLet()
@@ -279,9 +274,6 @@ class CompilationEngine():
                 self.compileReturn()
 
             keyword = self._identify_value(self.current_line)
-
-        self.indent -= 1
-        self.output.write("{}</statements>\n".format(" " * 2 * self.indent))
 
     def compileLet(self):
         """
@@ -381,61 +373,67 @@ class CompilationEngine():
         """
             Compiles a do statement.
         """
-        self.output.write("{}<doStatement>\n".format(" " * 2 * self.indent))
-        self.indent += 1
+        # Avança o comando <keyword> do </keyword>
+        self._skipLine()
+        # Identifica a função a ser chamada até o início dos parâmetros
+        function = ""
+        while self._identify_value(self.current_line) != '(':
+            # Adiciona o valor para montar o nome da chamda
+            function += self._identify_value(self.current_line)
+            # Avança para o próximo valor
+            self._skipLine()
 
-        # Escreve todos os elementos até iniciar a lista de expressões
-        while '(' not in self.current_line:
-            self._writeLine()
-        # Escreve o início da lista <symbol> ( </symbol>
-        self._writeLine()
-        # Escreve a lista
-        self.compileExpressionList()
-        # Escreve o fim da lista <symbol> ) </symbol>
-        self._writeLine()
-        # Escreve o fim do statement <symbol> ; </symbol>
-        self._writeLine()
+        # Avança o início da lista de expressões <symbol> ( </symbol>
+        self._skipLine()
+        # Compila a lista de expressões
+        n_args = self.compileExpressionList()
+        # Avança o fim da lista <symbol> ) </symbol>
+        self._skipLine()
+        # Avança o fim do statement <symbol> ; </symbol>
+        self._skipLine()
 
-        self.indent -= 1
-        self.output.write("{}</doStatement>\n".format(" " * 2 * self.indent))
+        # Escreve a chamada da função no arquivo .vm
+        self.code_writer.writeCall(function, n_args)
+
+        # Como a função 'do' não retorna nada, precisamos fazer um pop
+        # do valor gerado para a pilha temporária
+        self.code_writer.writePop("temp", 0)
 
     def compileReturn(self):
         """
             Compiles a return statement.
         """
-        self.output.write("{}<returnStatement>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
-        # Escreve o ínicio da declaração <keyword> return </keyword>
-        self._writeLine()
-        # Escreve a expressão
-        if not "symbol" in self.current_line:
+        # Avança o ínicio da declaração <keyword> return </keyword>
+        self._skipLine()
+        if self._identify_key(self.current_line) != "symbol":
+            # Compila a expressão de retorno
             self.compileExpression()
-        # Escreve o fim da declaração <symbol> ; </symbol>
-        self._writeLine()
+        else:
+            # A função não retorna nada, mas é esperado um valor de retorno
+            # Por isso informamos 0
+            self.code_writer.writePush("constant", 0)
+        # Avança o fim da declaração <symbol> ; </symbol>
+        self._skipLine()
 
-        self.indent -= 1
-        self.output.write("{}</returnStatement>\n".format(" " * 2 * self.indent))
+        # Escreve o comando de return no arquivo .vm
+        self.code_writer.writeReturn()
 
     def compileExpression(self):
         """
             Compiles an expression.
         """
-        self.output.write("{}<expression>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
         # Sempre inicia com um termo
         self.compileTerm()
 
         # Verificamos a necessidade de outro termo
-        if self._identify_value(self.current_line) in self.OPERATORS:
-            # Escreve o operador
-            self._writeLine()
-            # Escreve o próximo termo
+        operator = self._identify_value(self.current_line)
+        if operator in self.OPERATORS:
+            # Avança o operador
+            self._skipLine()
+            # Compila o próximo termo
             self.compileTerm()
-
-        self.indent -= 1
-        self.output.write("{}</expression>\n".format(" " * 2 * self.indent))
+            # Escreve a operação no arquivo
+            self.code_writer.writeArithmetic(operator)
 
     def compileTerm(self):
         """
@@ -449,73 +447,75 @@ class CompilationEngine():
             not part of this term and should not be advanced
             over.
         """
-        self.output.write("{}<term>\n".format(" " * 2 * self.indent))
-        self.indent += 1
-
-        if "identifier" in self.current_line:
+        if self._identify_key(self.current_line) == "identifier":
             # Pode ser um nome de variável ou uma chamada de função
             # var[expressao], funcao.chamada()
-            # Por isso escrevemos o identificador e
+            # Por isso gravamos e avançamos o identificador e
             # verificamos por caracteres especiais
-            self._writeLine()
+            nome = self._identify_value(self.current_line)
+            self._skipLine()
 
-            if '.' in self.current_line:
+            if self._identify_value(self.current_line) == '.':
                 # Se a linha for um símbolo . é uma chamada a uma função
-                # Escreve o ponto
+                # Grava e avança o ponto
+                nome += "."
                 self._writeLine()
-                #Escreve o nome da função
+                # Grava e avança o nome da função
+                nome += self._identify_value(self.current_line)
                 self._writeLine()
-                # Escreve o símbolo de início da chamada (
+                # Avança o símbolo de início da chamada (
                 self._writeLine()
-                # Se houver uma expressão dentro da chamada, escreve
-                # Se não, escreve a lista em branco
-                self.compileExpressionList()
-                # Escreve o símbolo de fim da chamada )
+                # Se houver uma expressão dentro da chamada, compila
+                # Se não, compila a lista em branco
+                n_args = self.compileExpressionList()
+                # Avança o símbolo de fim da chamada )
                 self._writeLine()
-            elif '[' in self.current_line:
+            elif self._identify_value(self.current_line) == '[':
                 # Se a linha for um símbolo [ é um acesso ao array
-                # Escreve a chave [
+                # Avança a chave [
                 self._writeLine()
-                # Escreve a expressão dentro das chaves
+                # Compila a expressão dentro das chaves
                 self.compileExpression()
-                # Escreve a chave ]
+                # Avança a chave ]
                 self._writeLine()
         elif self._identify_value(self.current_line) == '(':
-            # Escreve a abertura de expressão (
-            self._writeLine()
-            # Escreve a expressão
+            # Avança a abertura de expressão (
+            self._skipLine()
+            # Compila a expressão
             self.compileExpression()
-            # Escreve o encerramento da expressão )
-            self._writeLine()
+            # Avança o encerramento da expressão )
+            self._skipLine()
         elif "keyword" in self.current_line:
             self._writeLine()
         elif "stringConstant" in self.current_line:
             self._writeLine()
-        elif "integerConstant" in self.current_line:
-            self._writeLine()
+        elif self._identify_key(self.current_line) == "integerConstant":
+            # Adiciona a constante à pilha
+            num = self._identify_value(self.current_line)
+            self.code_writer.writePush("constant", num)
+            # Avança a linha
+            self._skipLine()
         elif self._identify_value(self.current_line) in ['-', '~']:
             # É um operador unário e ainda tem outra parte do termo
             # depois dele, portanto escreve o operador e o próximo termo
             self._writeLine()
             self.compileTerm()
 
-
-        self.indent -= 1
-        self.output.write("{}</term>\n".format(" " * 2 * self.indent))
-
     def compileExpressionList(self):
         """
             Compiles a (possibly empty) comma-separated
             list of expressions.
         """
-        self.output.write("{}<expressionList>\n".format(" " * 2 * self.indent))
-        self.indent += 1
+        arguments_count = 0
 
-        while ')' not in self.current_line:
-            if ',' in self.current_line:
-                self._writeLine()
+        while self._identify_value(self.current_line) != ')':
+            if self._identify_value(self.current_line) == ',':
+                # Avança a vírgula
+                self._skipLine()
             else:
+                # Compila a expressão
                 self.compileExpression()
+                # Incrementa a contagem de argumentos
+                arguments_count += 1
 
-        self.indent -= 1
-        self.output.write("{}</expressionList>\n".format(" " * 2 * self.indent))
+        return arguments_count
