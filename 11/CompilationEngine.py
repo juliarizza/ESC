@@ -103,38 +103,29 @@ class CompilationEngine():
             or a field declaration.
         """
         # Escreve múltiplas declarações de variável seguidas
-        while "var" in self.current_line or "static" in self.current_line \
-            or "field" in self.current_line:
-            self.output.write("{}<classVarDec>\n".format(" " * 2 * self.indent))
-            self.indent += 1
-
-            # Identifica a declaração do dado
-            type = self._identify_value(self.current_line)
-            # Escreve a declaração do dado
-            self.current_line = self.input.readline()
-            # Identifica o tipo do dado
+        while self._identify_value(self.current_line) in ["var", "static", "field"]:
+            # Grava e avança a declaração do dado
             kind = self._identify_value(self.current_line)
-            # Escreve o tipo do dado
-            self.current_line = self.input.readline()
+            self._skipLine()
+            # Grava e avança o tipo de dado
+            type = self._identify_value(self.current_line)
+            self._skipLine()
 
             # Escreve a declaração até que encontre o último caracter
-            while ' ; ' not in self.current_line:
-                if not "symbol" in self.current_line:
+            while self._identify_value(self.current_line) != ';':
+                if self._identify_key(self.current_line) != "symbol":
                     # Se não for uma vírgula, é um novo nome de variável
+                    # Grava e avança o nome
                     name = self._identify_value(self.current_line)
+                    self._skipLine()
                     # Adiciona a variável à symbol table
                     self.symbol_table.define(name, type, kind)
-                    index = self.symbol_table.indexOf(name)
-                    # Escreve o nome da variável
-                    self._writeLine(f"<{kind}> {index} </{kind}>\n")
                 else:
-                    self._writeLine()
+                    # Se for uma vírgula, avança a linha
+                    self._skipLine()
 
-            # Escreve o último caracter ;
-            self._writeLine()
-
-            self.indent -= 1
-            self.output.write("{}</classVarDec>\n".format(" " * 2 * self.indent))
+            # Avança o último caracter ;
+            self._skipLine()
 
     def compileSubroutineDec(self, class_name):
         """
