@@ -57,7 +57,7 @@ class CompilationEngine():
 
     def _identify_value(self, line):
         first_tag_end = line.find('> ')
-        last_tag_start = line.find(' <')
+        last_tag_start = line.find(' </')
         return line[first_tag_end+2:last_tag_start]
 
     def _writeLine(self, line=None):

@@ -108,51 +108,57 @@ class JackTokenizer():
         current_token = []
         for index, letter in enumerate(line):
             if index >= self.current_token_position and not self.comment:
-                if letter == " " and not self._is_string(current_token):
-                    # Se a próxima letra for um espaço, o token acabou
-                    # então escrevemos ele no arquivo
-                    # No entanto, se houver um " no início, significa que é uma
-                    # string e que pode conter espaço
-                    self.current_token_position = index + 1
-                    break
-                elif letter == " " and self._is_string(current_token) \
-                    and self._is_complete_string(current_token):
-                    # Se for uma string, mas estiver completa, podemos escrever
-                    # o token no arquivo
-                    self.current_token_position = index + 1
-                    break
-                elif (index < len(line) -1) and \
-                    letter == '/' and line[index + 1] == '/':
-                    # Se começar um comentário de linha, devemos ir para a
-                    # próxima linha então setamos o índice para o fim da linha
-                    self.current_token_position = len(line)
-                    break
-                elif (index < len(line) -1) and \
-                    letter == '/' and line[index + 1] == '*':
-                    # Se começar um comentário de multiplas linhas, devemos
-                    # avançar até o seu fim, e para isso encerrar o token
-                    self.comment = True
-                    break
-                elif letter in self.SYMBOLS:
-                    # Se a próxima letra for um símbolo, o token acabou
-                    # então escrevemos ele no arquivo e depois escrevemos
-                    # o símbolo
-                    if len(current_token):
-                        self.current_token = "".join(current_token)
-                        self._writeToFile()
+                if not self._is_string(current_token):
+                    if letter == " ":
+                        # Se a próxima letra for um espaço, o token acabou
+                        # então escrevemos ele no arquivo
+                        # No entanto, se houver um " no início, significa que é uma
+                        # string e que pode conter espaço
+                        self.current_token_position = index + 1
+                        break
+                    elif (index < len(line) -1) and \
+                        letter == '/' and line[index + 1] == '/':
+                        # Se começar um comentário de linha, devemos ir para a
+                        # próxima linha então setamos o índice para o fim da linha
+                        self.current_token_position = len(line)
+                        break
+                    elif (index < len(line) -1) and \
+                        letter == '/' and line[index + 1] == '*':
+                        # Se começar um comentário de multiplas linhas, devemos
+                        # avançar até o seu fim, e para isso encerrar o token
+                        self.comment = True
+                        break
+                    elif letter in self.SYMBOLS:
+                        # Se a próxima letra for um símbolo, o token acabou
+                        # então escrevemos ele no arquivo e depois escrevemos
+                        # o símbolo
+                        if len(current_token):
+                            self.current_token = "".join(current_token)
+                            self._writeToFile()
 
-                    current_token = [letter]
-                    self.current_token_position = index + 1
-                    break
-                elif index == (len(line) - 1):
-                    # Se alcançamos a última letra da linha, o token acabou
-                    # então escrevemos ele no arquivo
-                    self.current_token_position = index + 1
-                    break
+                        current_token = [letter]
+                        self.current_token_position = index + 1
+                        break
+                    elif index == (len(line) - 1):
+                        # Se alcançamos a última letra da linha, o token acabou
+                        # então escrevemos ele no arquivo
+                        self.current_token_position = index + 1
+                        break
+                    else:
+                        # Caso contrário continuamos adicionando letras no token
+                        current_token.append(letter)
+                        self.current_token_position = index
                 else:
-                    # Caso contrário continuamos adicionando letras no token
-                    current_token.append(letter)
-                    self.current_token_position = index
+                    if self._is_complete_string(current_token):
+                        # Se for uma string e estiver completa, podemos escrever
+                        # o token no arquivo
+                        self.current_token_position = index
+                        break
+                    else:
+                        # Se não estiver completa, continuamos adicionando
+                        # letras no token
+                        current_token.append(letter)
+                        self.current_token_position = index
             elif self.comment:
                 if index < (len(line) - 1) and \
                     letter == '*' and line[index + 1] == '/':
