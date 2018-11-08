@@ -27,9 +27,7 @@ class CompilationEngine():
         self.symbol_table = None
         self.code_writer = VMWriter(output_file)
         self.label_counter = 0
-        self.indent = 0
-
-
+        
         self._compile()
 
     def _compile(self):
@@ -50,23 +48,6 @@ class CompilationEngine():
         first_tag_end = line.find('> ')
         last_tag_start = line.find(' </')
         return line[first_tag_end+2:last_tag_start]
-
-    def _writeLine(self, line=None):
-        """
-            Writes the current line to the output file.
-        """
-        if not line:
-            self.output.write("{0}{1}".format(
-                " " * 2 * self.indent,
-                self.current_line
-            ))
-            self.current_line = self.input.readline()
-        else:
-            self.output.write("{0}{1}".format(
-                " " * 2 * self.indent,
-                line
-            ))
-            self.current_line = self.input.readline()
 
     def _skipLine(self):
         self.current_line = self.input.readline()
@@ -264,12 +245,12 @@ class CompilationEngine():
 
         # Se tiver [, é de um array e deve conter uma expressão dentro
         if self._identify_value(self.current_line) == '[':
-            # Escreve a abertura de chave [
-            self._writeLine()
-            # Escreve a expressão
+            # Avança a abertura de chave [
+            self._skipLine()
+            # Compila a expressão
             self.compileExpression()
-            # Escreve o fechamento de chave ]
-            self._writeLine()
+            # Avança o fechamento de chave ]
+            self._skipLine()
 
         # Avança a associação <symbol> = </symbol>
         self._skipLine()
@@ -477,11 +458,20 @@ class CompilationEngine():
             elif self._identify_value(self.current_line) == '[':
                 # Se a linha for um símbolo [ é um acesso ao array
                 # Avança a chave [
-                self._writeLine()
+                self._skipLine()
                 # Compila a expressão dentro das chaves
                 self.compileExpression()
                 # Avança a chave ]
-                self._writeLine()
+                self._skipLine()
+
+                kind = self.symbol_table.kindOf(name)
+                index = self.symbol_table.indexOf(name)
+                # Escreve o push do array no arquivo .vm
+                self.code_writer.writePush(kind, index)
+
+                self.code_writer.writeArithmetic('+')
+                self.code_writer.writePop('pointer', 1)
+                self.code_writer.writePush('that', 0)
             else:
                 # Faz o push do identifier no arquivo .vm
                 kind = self.symbol_table.kindOf(name)
@@ -503,8 +493,18 @@ class CompilationEngine():
             elif value == "false":
                 self.code_writer.writePush("constant", 0)
             self._skipLine()
-        elif "stringConstant" in self.current_line:
-            self._writeLine()
+        elif self._identify_key(self.current_line) == "stringConstant":
+            # Grava a string
+            string = self._identify_value(self.current_line)
+
+            # Escreve o tamanho e chama a criação de string no arquivo .vm
+            self.code_writer.writePush("constant", len(string))
+            self.code_writer.writeCall("String.appendChar", 1)
+
+            # Escreve o código e adiciona cada caracter no arquivo .vm
+            for char in string:
+                self.code_writer.writePush("constant", ord(char))
+                self.code_writer.writeCall("String.appendChar", 2)
         elif self._identify_key(self.current_line) == "integerConstant":
             # Adiciona a constante à pilha
             num = self._identify_value(self.current_line)

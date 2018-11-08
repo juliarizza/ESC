@@ -13,7 +13,7 @@ class SymbolTable():
     KINDS = {
         "var": "local",
         "argument": "argument",
-        "field": "field",
+        "field": "this",
         "static": "static"
     }
 
