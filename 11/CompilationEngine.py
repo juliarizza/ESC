@@ -60,16 +60,22 @@ class CompilationEngine():
         last_tag_start = line.find(' <')
         return line[first_tag_end+2:last_tag_start]
 
-    def _writeLine(self):
+    def _writeLine(self, line=None):
         """
             Writes the current line to the output file.
         """
-        self.output.write("{0}{1}".format(
-            " " * 2 * self.indent,
-            self.current_line
-        ))
-
-        self.current_line = self.input.readline()
+        if not line:
+            self.output.write("{0}{1}".format(
+                " " * 2 * self.indent,
+                self.current_line
+            ))
+            self.current_line = self.input.readline()
+        else:
+            self.output.write("{0}{1}".format(
+                " " * 2 * self.indent,
+                line
+            ))
+            self.current_line = self.input.readline()
 
     def compileClass(self):
         """
@@ -109,23 +115,24 @@ class CompilationEngine():
             self.indent += 1
 
             # Identifica a declaração do dado
-            type = self._identify_value(self.current_value)
+            type = self._identify_value(self.current_line)
             # Escreve a declaração do dado
-            self._writeLine()
+            self.current_line = self.input.readline()
             # Identifica o tipo do dado
             kind = self._identify_value(self.current_line)
             # Escreve o tipo do dado
-            self._writeLine()
+            self.current_line = self.input.readline()
 
             # Escreve a declaração até que encontre o último caracter
             while ' ; ' not in self.current_line:
                 if not "symbol" in self.current_line:
                     # Se não for uma vírgula, é um novo nome de variável
                     name = self._identify_value(self.current_line)
-                    # Escreve o nome da variável
-                    self._writeLine()
                     # Adiciona a variável à symbol table
                     self.symbol_table.define(name, type, kind)
+                    index = self.symbol_table.indexOf(name)
+                    # Escreve o nome da variável
+                    self._writeLine(f"<{kind}> {index} </{kind}>\n")
                 else:
                     self._writeLine()
 
@@ -175,21 +182,18 @@ class CompilationEngine():
         self.output.write("{}<parameterList>\n".format(" " * 2 * self.indent))
         self.indent += 1
 
-        # Identifica os valores para adicionar na symbol table da subrotina
-        type = None
-        name = None
-
         # Escreve todas as linhas até encontrar o caracter de fim de parâmetros
         while ')' not in self.current_line:
             if not "symbol" in self.current_line:
                 # Escreve o tipo
                 type = self._identify_value(self.current_line)
-                self._writeLine()
+                self.current_line = self.input.readline()
                 # Escreve o nome do argumento
                 name = self._identify_value(self.current_line)
-                self._writeLine()
                 # Adiciona o argumento à symbol table da subrotina
                 self.symbol_table.define(name, type, "argument")
+                index = self.symbol_table.indexOf(name)
+                self._writeLine(f"<argument> {index} </argument>\n")
             else:
                 # Escreve a vírgula
                 self._writeLine()
@@ -227,20 +231,21 @@ class CompilationEngine():
 
             # Escreve a declaração da variável
             kind = self._identify_value(self.current_line)
-            self._writeLine()
+            self.current_line = self.input.readline()
             # Escreve o tipo da variável
             type = self._identify_value(self.current_line)
-            self._writeLine()
+            self.current_line = self.input.readline()
 
             # Escreve a declaração até que encontre o último caracter
             while ' ; ' not in self.current_line:
                 if not "symbol" in self.current_line:
                     # Se não for uma vírgula, é um novo nome de variável
                     name = self._identify_value(self.current_line)
-                    # Escreve o nome da variável
-                    self._writeLine()
                     # Adiciona a variável à symbol table
                     self.symbol_table.define(name, type, kind)
+                    index = self.symbol_table.indexOf(name)
+                    # Escreve o nome da variável
+                    self._writeLine(f"<{kind}> {index} </{kind}>\n")
                 else:
                     self._writeLine()
 
